@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import {
   Wallet, TrendingUp, TrendingDown, PiggyBank, Plus, Search,
-  Check, X, Calendar, ChevronRight, Trash2, BookOpen, ListChecks, Pencil
+  Check, X, Calendar, ChevronRight, Trash2, BookOpen, ListChecks, Pencil,
+  Sun, Moon,
 } from 'lucide-react';
 
 /* ============================================================
@@ -17,8 +18,13 @@ const theme = {
   border: { light: '#E4EAF3', dark: '#2C3E58' },
   success: { light: '#1BB58B', dark: '#4CD5A9' },
   warning: { light: '#F4A340', dark: '#FFC166' },
+  warningSurface: { light: '#FEF3E4', dark: '#3A2C16' },
   error: { light: '#E85D75', dark: '#FF869C' },
+  onAccent: { light: '#FFFFFF', dark: '#0C1424' },
 };
+
+// Resolves every token to the given mode, e.g. tone('dark').primary === '#5A8CFF'.
+const tone = (mode) => Object.fromEntries(Object.entries(theme).map(([k, v]) => [k, v[mode]]));
 
 /* ============================================================
    FINANCE DATA ADAPTER
@@ -64,11 +70,11 @@ const money = (n) => `£${n.toLocaleString('en-GB')}`;
 /* ============================================================
    SIGNATURE ELEMENT — a ledger-tick divider
    ============================================================ */
-const LedgerDivider = () => (
+const LedgerDivider = ({ color }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0' }}>
-    <div style={{ flex: 1, height: 2, background: theme.border.light, borderRadius: 1 }} />
-    <div style={{ width: 6, height: 6, borderRadius: 3, background: theme.border.light }} />
-    <div style={{ flex: 1, height: 2, background: theme.border.light, borderRadius: 1 }} />
+    <div style={{ flex: 1, height: 2, background: color, borderRadius: 1 }} />
+    <div style={{ width: 6, height: 6, borderRadius: 3, background: color }} />
+    <div style={{ flex: 1, height: 2, background: color, borderRadius: 1 }} />
   </div>
 );
 
@@ -77,6 +83,44 @@ const LedgerDivider = () => (
    ============================================================ */
 export default function PersonalDashboard() {
   const [tab, setTab] = useState('overview');
+
+  // Dark mode — follows the OS/browser preference by default; the header
+  // toggle sets an explicit override that's remembered on this device.
+  const [systemPrefersDark, setSystemPrefersDark] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+      : false
+  );
+  const [modeOverride, setModeOverride] = useState(null);
+  const mode = modeOverride ?? (systemPrefersDark ? 'dark' : 'light');
+  const T = useMemo(() => tone(mode), [mode]);
+
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const query = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = (e) => setSystemPrefersDark(e.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await window.storage.get('theme-mode', false);
+        if (res && (res.value === 'light' || res.value === 'dark')) {
+          setModeOverride(res.value);
+        }
+      } catch {
+        // no saved preference — keep following the system setting
+      }
+    })();
+  }, []);
+
+  const toggleMode = () => {
+    const next = mode === 'dark' ? 'light' : 'dark';
+    setModeOverride(next);
+    window.storage.set('theme-mode', next, false).catch(() => {});
+  };
 
   // Accounts & bills — start from sample data, but become real once
   // you edit or add one; persisted the same way as the to-do list.
@@ -272,9 +316,9 @@ export default function PersonalDashboard() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: theme.background.light,
+      background: T.background,
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-      color: theme.foreground.light,
+      color: T.foreground,
       paddingBottom: 84,
     }}>
       <style>{`
@@ -282,25 +326,36 @@ export default function PersonalDashboard() {
         * { box-sizing: border-box; }
         .display { font-family: 'Manrope', sans-serif; }
         .scrollx::-webkit-scrollbar { display: none; }
-        input:focus, textarea:focus { outline: 2px solid ${theme.primary.light}; outline-offset: 1px; }
+        input:focus, textarea:focus { outline: 2px solid ${T.primary}; outline-offset: 1px; }
       `}</style>
 
       {/* Header */}
       <div style={{
-        background: theme.surface.light,
-        borderBottom: `1px solid ${theme.border.light}`,
+        background: T.surface,
+        borderBottom: `1px solid ${T.border}`,
         padding: '20px 18px 16px',
         position: 'sticky', top: 0, zIndex: 10,
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: theme.muted.light, letterSpacing: 0.4, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, letterSpacing: 0.4, textTransform: 'uppercase' }}>
               Personal
             </div>
             <div className="display" style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>
               Scott's Dashboard
             </div>
           </div>
+          <button
+            onClick={toggleMode}
+            aria-label={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            style={{
+              width: 34, height: 34, borderRadius: 10, flexShrink: 0,
+              border: `1px solid ${T.border}`, background: T.background,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            {mode === 'dark' ? <Sun size={16} color={T.foreground} /> : <Moon size={16} color={T.foreground} />}
+          </button>
         </div>
       </div>
 
@@ -310,32 +365,32 @@ export default function PersonalDashboard() {
         overflowX: 'auto', scrollbarWidth: 'none',
       }}>
         {[
-          { label: 'Total balance', value: money(summary.totalBalance), color: theme.primary.light, icon: Wallet },
-          { label: 'Income (mo.)', value: money(summary.income), color: theme.success.light, icon: TrendingUp },
-          { label: 'Expenses (mo.)', value: money(summary.expenses), color: theme.error.light, icon: TrendingDown },
-          { label: 'Savings rate', value: `${summary.savingsRate}%`, color: theme.foreground.light, icon: PiggyBank },
+          { label: 'Total balance', value: money(summary.totalBalance), color: T.primary, icon: Wallet },
+          { label: 'Income (mo.)', value: money(summary.income), color: T.success, icon: TrendingUp },
+          { label: 'Expenses (mo.)', value: money(summary.expenses), color: T.error, icon: TrendingDown },
+          { label: 'Savings rate', value: `${summary.savingsRate}%`, color: T.foreground, icon: PiggyBank },
         ].map((s, i) => (
           <div key={i} style={{
-            minWidth: 138, background: theme.surface.light, borderRadius: 14,
-            padding: '14px 14px', border: `1px solid ${theme.border.light}`, flexShrink: 0,
+            minWidth: 138, background: T.surface, borderRadius: 14,
+            padding: '14px 14px', border: `1px solid ${T.border}`, flexShrink: 0,
           }}>
             <s.icon size={16} color={s.color} />
             <div className="display" style={{ fontSize: 19, fontWeight: 800, marginTop: 8 }}>{s.value}</div>
-            <div style={{ fontSize: 11.5, color: theme.muted.light, marginTop: 2 }}>{s.label}</div>
+            <div style={{ fontSize: 11.5, color: T.muted, marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
       </div>
 
       {/* Cashflow chart */}
       <div style={{
-        margin: '14px 18px 0', background: theme.surface.light, borderRadius: 14,
-        border: `1px solid ${theme.border.light}`, padding: '14px 16px 6px',
+        margin: '14px 18px 0', background: T.surface, borderRadius: 14,
+        border: `1px solid ${T.border}`, padding: '14px 16px 6px',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 13, fontWeight: 700 }}>Income vs expenses</div>
           <div style={{ display: 'flex', gap: 10, fontSize: 11 }}>
-            <span style={{ color: theme.success.light, fontWeight: 600 }}>● Income</span>
-            <span style={{ color: theme.error.light, fontWeight: 600 }}>● Expenses</span>
+            <span style={{ color: T.success, fontWeight: 600 }}>● Income</span>
+            <span style={{ color: T.error, fontWeight: 600 }}>● Expenses</span>
           </div>
         </div>
         <div style={{ height: 92, marginTop: 4 }}>
@@ -343,18 +398,18 @@ export default function PersonalDashboard() {
             <AreaChart data={cashflow} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
               <defs>
                 <linearGradient id="incomeFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={theme.success.light} stopOpacity={0.2} />
-                  <stop offset="100%" stopColor={theme.success.light} stopOpacity={0} />
+                  <stop offset="0%" stopColor={T.success} stopOpacity={0.2} />
+                  <stop offset="100%" stopColor={T.success} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis dataKey="month" hide />
               <Tooltip
                 formatter={(v, key) => [money(v), key === 'income' ? 'Income' : 'Expenses']}
                 labelStyle={{ display: 'none' }}
-                contentStyle={{ borderRadius: 8, border: `1px solid ${theme.border.light}`, fontSize: 12 }}
+                contentStyle={{ borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 12 }}
               />
-              <Area type="monotone" dataKey="income" stroke={theme.success.light} strokeWidth={2.5} fill="url(#incomeFill)" />
-              <Area type="monotone" dataKey="expenses" stroke={theme.error.light} strokeWidth={2} fill="transparent" />
+              <Area type="monotone" dataKey="income" stroke={T.success} strokeWidth={2.5} fill="url(#incomeFill)" />
+              <Area type="monotone" dataKey="expenses" stroke={T.error} strokeWidth={2} fill="transparent" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -369,10 +424,10 @@ export default function PersonalDashboard() {
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             flex: 1, padding: '9px 0', borderRadius: 10,
-            background: tab === t.key ? theme.primary.light : theme.surface.light,
-            color: tab === t.key ? '#fff' : theme.muted.light,
+            background: tab === t.key ? T.primary : T.surface,
+            color: tab === t.key ? T.onAccent : T.muted,
             fontWeight: 700, fontSize: 13,
-            border: tab === t.key ? 'none' : `1px solid ${theme.border.light}`,
+            border: tab === t.key ? 'none' : `1px solid ${T.border}`,
           }}>
             {t.label}
           </button>
@@ -383,17 +438,17 @@ export default function PersonalDashboard() {
       {tab === 'overview' && (
         <div style={{ padding: '0 18px' }}>
           {financeError && (
-            <div style={{ fontSize: 12, color: theme.error.light, marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: T.error, marginBottom: 10 }}>
               Couldn't save that change — try again.
             </div>
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0 8px' }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: theme.muted.light, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: 0.4 }}>
               Accounts
             </div>
             <button onClick={() => setAddingAccount(!addingAccount)} style={{
-              border: 'none', background: 'none', color: theme.primary.light,
+              border: 'none', background: 'none', color: T.primary,
               fontSize: 12.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3, padding: 2,
             }}>
               <Plus size={13} /> Add
@@ -402,39 +457,39 @@ export default function PersonalDashboard() {
 
           {addingAccount && (
             <div style={{
-              background: theme.surface.light, borderRadius: 14, border: `1px solid ${theme.border.light}`,
+              background: T.surface, borderRadius: 14, border: `1px solid ${T.border}`,
               padding: 12, marginBottom: 10, display: 'flex', gap: 8,
             }}>
               <input
                 value={newAccountName}
                 onChange={(e) => setNewAccountName(e.target.value)}
                 placeholder="Account name"
-                style={{ flex: 1.3, padding: '8px 10px', borderRadius: 8, border: `1px solid ${theme.border.light}`, fontSize: 13.5 }}
+                style={{ flex: 1.3, padding: '8px 10px', borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13.5 }}
               />
               <input
                 value={newAccountBalance}
                 onChange={(e) => setNewAccountBalance(e.target.value)}
                 placeholder="Balance"
                 inputMode="decimal"
-                style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: `1px solid ${theme.border.light}`, fontSize: 13.5 }}
+                style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13.5 }}
               />
               <button onClick={addAccount} style={{
-                width: 36, borderRadius: 8, border: 'none', background: theme.primary.light,
+                width: 36, borderRadius: 8, border: 'none', background: T.primary,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <Check size={16} color="#fff" />
+                <Check size={16} color={T.onAccent} />
               </button>
             </div>
           )}
 
           {!financeLoaded ? (
-            <div style={{ fontSize: 13, color: theme.muted.light, textAlign: 'center', padding: '20px 0' }}>Loading…</div>
+            <div style={{ fontSize: 13, color: T.muted, textAlign: 'center', padding: '20px 0' }}>Loading…</div>
           ) : (
             accounts.map((a, i) => (
               <div key={a.id}>
                 <div style={{
-                  background: theme.surface.light, borderRadius: 14,
-                  border: `1px solid ${theme.border.light}`, padding: 14,
+                  background: T.surface, borderRadius: 14,
+                  border: `1px solid ${T.border}`, padding: 14,
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
                 }}>
                   <div style={{ fontSize: 14, fontWeight: 600 }}>{a.name}</div>
@@ -446,35 +501,35 @@ export default function PersonalDashboard() {
                         onKeyDown={(e) => e.key === 'Enter' && commitAccountEdit(a.id)}
                         inputMode="decimal"
                         autoFocus
-                        style={{ width: 90, padding: '6px 8px', borderRadius: 7, border: `1px solid ${theme.border.light}`, fontSize: 14, textAlign: 'right' }}
+                        style={{ width: 90, padding: '6px 8px', borderRadius: 7, border: `1px solid ${T.border}`, fontSize: 14, textAlign: 'right' }}
                       />
                       <button onClick={() => commitAccountEdit(a.id)} style={{ border: 'none', background: 'none', padding: 3 }}>
-                        <Check size={16} color={theme.success.light} />
+                        <Check size={16} color={T.success} />
                       </button>
                     </div>
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div className="display" style={{ fontSize: 15, fontWeight: 800 }}>{money(a.balance)}</div>
                       <button onClick={() => startEditingAccount(a)} style={{ border: 'none', background: 'none', padding: 2 }}>
-                        <Pencil size={13} color={theme.muted.light} />
+                        <Pencil size={13} color={T.muted} />
                       </button>
                       <button onClick={() => removeAccount(a.id)} style={{ border: 'none', background: 'none', padding: 2 }}>
-                        <X size={14} color={theme.muted.light} />
+                        <X size={14} color={T.muted} />
                       </button>
                     </div>
                   )}
                 </div>
-                {i < accounts.length - 1 && <LedgerDivider />}
+                {i < accounts.length - 1 && <LedgerDivider color={T.border} />}
               </div>
             ))
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '18px 0 8px' }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: theme.muted.light, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: 0.4 }}>
               Upcoming bills
             </div>
             <button onClick={() => setAddingBill(!addingBill)} style={{
-              border: 'none', background: 'none', color: theme.primary.light,
+              border: 'none', background: 'none', color: T.primary,
               fontSize: 12.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3, padding: 2,
             }}>
               <Plus size={13} /> Add
@@ -483,7 +538,7 @@ export default function PersonalDashboard() {
 
           {addingBill && (
             <div style={{
-              background: theme.surface.light, borderRadius: 14, border: `1px solid ${theme.border.light}`,
+              background: T.surface, borderRadius: 14, border: `1px solid ${T.border}`,
               padding: 12, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8,
             }}>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -491,14 +546,14 @@ export default function PersonalDashboard() {
                   value={newBillName}
                   onChange={(e) => setNewBillName(e.target.value)}
                   placeholder="Bill name"
-                  style={{ flex: 1.3, padding: '8px 10px', borderRadius: 8, border: `1px solid ${theme.border.light}`, fontSize: 13.5 }}
+                  style={{ flex: 1.3, padding: '8px 10px', borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13.5 }}
                 />
                 <input
                   value={newBillAmount}
                   onChange={(e) => setNewBillAmount(e.target.value)}
                   placeholder="Amount"
                   inputMode="decimal"
-                  style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: `1px solid ${theme.border.light}`, fontSize: 13.5 }}
+                  style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13.5 }}
                 />
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -506,13 +561,13 @@ export default function PersonalDashboard() {
                   value={newBillDue}
                   onChange={(e) => setNewBillDue(e.target.value)}
                   placeholder="Due (e.g. Due in 5 days)"
-                  style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: `1px solid ${theme.border.light}`, fontSize: 13.5 }}
+                  style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13.5 }}
                 />
                 <button onClick={addBill} style={{
-                  width: 36, borderRadius: 8, border: 'none', background: theme.primary.light,
+                  width: 36, borderRadius: 8, border: 'none', background: T.primary,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
-                  <Check size={16} color="#fff" />
+                  <Check size={16} color={T.onAccent} />
                 </button>
               </div>
             </div>
@@ -521,26 +576,26 @@ export default function PersonalDashboard() {
           {financeLoaded && bills.map((b, i) => (
             <div key={b.id}>
               <div style={{
-                background: theme.surface.light, borderRadius: 14,
-                border: `1px solid ${theme.border.light}`, padding: 14,
+                background: T.surface, borderRadius: 14,
+                border: `1px solid ${T.border}`, padding: 14,
                 display: 'flex', gap: 12, alignItems: 'center',
               }}>
                 <div style={{
-                  width: 36, height: 36, borderRadius: 9, background: '#FEF3E4',
+                  width: 36, height: 36, borderRadius: 9, background: T.warningSurface,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
-                  <Calendar size={16} color={theme.warning.light} />
+                  <Calendar size={16} color={T.warning} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600 }}>{b.name}</div>
-                  <div style={{ fontSize: 12, color: theme.muted.light, marginTop: 1 }}>{b.due}</div>
+                  <div style={{ fontSize: 12, color: T.muted, marginTop: 1 }}>{b.due}</div>
                 </div>
                 <div className="display" style={{ fontSize: 14, fontWeight: 800 }}>{money(b.amount)}</div>
                 <button onClick={() => removeBill(b.id)} style={{ border: 'none', background: 'none', padding: 2 }}>
-                  <X size={14} color={theme.muted.light} />
+                  <X size={14} color={T.muted} />
                 </button>
               </div>
-              {i < bills.length - 1 && <LedgerDivider />}
+              {i < bills.length - 1 && <LedgerDivider color={T.border} />}
             </div>
           ))}
         </div>
@@ -557,58 +612,58 @@ export default function PersonalDashboard() {
               placeholder="Add a task"
               style={{
                 flex: 1, padding: '10px 12px', borderRadius: 10,
-                border: `1px solid ${theme.border.light}`, fontSize: 14,
-                background: theme.surface.light, color: theme.foreground.light,
+                border: `1px solid ${T.border}`, fontSize: 14,
+                background: T.surface, color: T.foreground,
               }}
             />
             <button onClick={addTodo} style={{
-              width: 42, borderRadius: 10, border: 'none', background: theme.primary.light,
+              width: 42, borderRadius: 10, border: 'none', background: T.primary,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <Plus size={18} color="#fff" />
+              <Plus size={18} color={T.onAccent} />
             </button>
           </div>
 
           {todoError && (
-            <div style={{ fontSize: 12, color: theme.error.light, marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: T.error, marginBottom: 10 }}>
               Couldn't save that change — try again.
             </div>
           )}
 
           {!todosLoaded ? (
-            <div style={{ fontSize: 13, color: theme.muted.light, textAlign: 'center', padding: '20px 0' }}>Loading…</div>
+            <div style={{ fontSize: 13, color: T.muted, textAlign: 'center', padding: '20px 0' }}>Loading…</div>
           ) : todos.length === 0 ? (
             <div style={{
-              textAlign: 'center', padding: '32px 0', color: theme.muted.light, fontSize: 13.5,
+              textAlign: 'center', padding: '32px 0', color: T.muted, fontSize: 13.5,
             }}>
-              <ListChecks size={28} color={theme.border.light} style={{ marginBottom: 8 }} />
+              <ListChecks size={28} color={T.border} style={{ marginBottom: 8 }} />
               <div>Nothing on the list yet. Add your first task above.</div>
             </div>
           ) : (
             todos.map((t, i) => (
               <div key={t.id}>
                 <div style={{
-                  background: theme.surface.light, borderRadius: 12,
-                  border: `1px solid ${theme.border.light}`, padding: '11px 12px',
+                  background: T.surface, borderRadius: 12,
+                  border: `1px solid ${T.border}`, padding: '11px 12px',
                   display: 'flex', gap: 10, alignItems: 'center',
                 }}>
                   <button onClick={() => toggleTodo(t.id)} style={{
                     width: 22, height: 22, borderRadius: 6, flexShrink: 0,
-                    border: `1.5px solid ${t.done ? theme.success.light : theme.border.light}`,
-                    background: t.done ? theme.success.light : 'transparent',
+                    border: `1.5px solid ${t.done ? T.success : T.border}`,
+                    background: t.done ? T.success : 'transparent',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    {t.done && <Check size={14} color="#fff" />}
+                    {t.done && <Check size={14} color={T.onAccent} />}
                   </button>
                   <div style={{
                     flex: 1, fontSize: 14,
                     textDecoration: t.done ? 'line-through' : 'none',
-                    color: t.done ? theme.muted.light : theme.foreground.light,
+                    color: t.done ? T.muted : T.foreground,
                   }}>
                     {t.text}
                   </div>
                   <button onClick={() => removeTodo(t.id)} style={{ border: 'none', background: 'none', padding: 4 }}>
-                    <X size={15} color={theme.muted.light} />
+                    <X size={15} color={T.muted} />
                   </button>
                 </div>
                 {i < todos.length - 1 && <div style={{ height: 6 }} />}
@@ -629,13 +684,13 @@ export default function PersonalDashboard() {
               rows={3}
               style={{
                 width: '100%', padding: '10px 12px', borderRadius: 10,
-                border: `1px solid ${theme.border.light}`, fontSize: 14, resize: 'vertical',
-                fontFamily: 'inherit', background: theme.surface.light, color: theme.foreground.light,
+                border: `1px solid ${T.border}`, fontSize: 14, resize: 'vertical',
+                fontFamily: 'inherit', background: T.surface, color: T.foreground,
               }}
             />
             <button onClick={addEntry} style={{
               marginTop: 8, width: '100%', padding: '10px 0', borderRadius: 10,
-              border: 'none', background: theme.primary.light, color: '#fff',
+              border: 'none', background: T.primary, color: T.onAccent,
               fontWeight: 700, fontSize: 13.5, display: 'flex', alignItems: 'center',
               justifyContent: 'center', gap: 6,
             }}>
@@ -644,33 +699,33 @@ export default function PersonalDashboard() {
           </div>
 
           {entryError && (
-            <div style={{ fontSize: 12, color: theme.error.light, marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: T.error, marginBottom: 10 }}>
               Couldn't save that change — try again.
             </div>
           )}
 
           {!entriesLoaded ? (
-            <div style={{ fontSize: 13, color: theme.muted.light, textAlign: 'center', padding: '20px 0' }}>Loading…</div>
+            <div style={{ fontSize: 13, color: T.muted, textAlign: 'center', padding: '20px 0' }}>Loading…</div>
           ) : entries.length === 0 ? (
             <div style={{
-              textAlign: 'center', padding: '32px 0', color: theme.muted.light, fontSize: 13.5,
+              textAlign: 'center', padding: '32px 0', color: T.muted, fontSize: 13.5,
             }}>
-              <BookOpen size={28} color={theme.border.light} style={{ marginBottom: 8 }} />
+              <BookOpen size={28} color={T.border} style={{ marginBottom: 8 }} />
               <div>No entries yet. Jot down today's note above.</div>
             </div>
           ) : (
             entries.map((e, i) => (
               <div key={e.id}>
                 <div style={{
-                  background: theme.surface.light, borderRadius: 14,
-                  border: `1px solid ${theme.border.light}`, padding: 14,
+                  background: T.surface, borderRadius: 14,
+                  border: `1px solid ${T.border}`, padding: 14,
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: 11.5, fontWeight: 700, color: theme.muted.light, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
                       {e.date}
                     </div>
                     <button onClick={() => removeEntry(e.id)} style={{ border: 'none', background: 'none', padding: 2 }}>
-                      <Trash2 size={13} color={theme.muted.light} />
+                      <Trash2 size={13} color={T.muted} />
                     </button>
                   </div>
                   <div style={{ fontSize: 14, marginTop: 6, lineHeight: 1.45 }}>{e.text}</div>
@@ -682,7 +737,7 @@ export default function PersonalDashboard() {
         </div>
       )}
 
-      <div style={{ padding: '20px 18px 0', fontSize: 11.5, color: theme.muted.light, textAlign: 'center' }}>
+      <div style={{ padding: '20px 18px 0', fontSize: 11.5, color: T.muted, textAlign: 'center' }}>
         Accounts, bills, to-dos and diary entries all save for you automatically. The income/expenses chart is still sample data.
       </div>
     </div>
